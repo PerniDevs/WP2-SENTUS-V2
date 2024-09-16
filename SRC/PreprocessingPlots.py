@@ -7,8 +7,8 @@
 #  Project:        SENTUS
 #  File:           PreprocessingPlots.py
 #
-#   Author: GNSS Academy
-#   Copyright 2024 GNSS Academy
+#   Author: Agustin Pernigotti
+#   Copyright 2024 Agustin Pernigotti
 #
 # -----------------------------------------------------------------
 # Date       | Author             | Action

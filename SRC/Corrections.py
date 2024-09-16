@@ -6,10 +6,10 @@
 #
 #  Project:        SENTUS
 #  File:           Corrections.py
-#  Date(YY/MM/DD): 14/07/24
+#  Date(YY/MM/DD): 18/09/2024
 #
-#   Author: GNSS Academy
-#   Copyright 2024 GNSS Academy
+#   Author: Agustin Pernigotti
+#   Copyright 2024 Agustin Pernigotti
 #
 # -----------------------------------------------------------------
 # Date       | Author             | Action

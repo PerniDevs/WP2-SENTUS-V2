@@ -7,8 +7,8 @@
 #  Project:        SENTUS
 #  File:           Sentus.py
 #
-#   Author: GNSS Academy
-#   Copyright 2024 GNSS Academy
+#   Author: Agustin Pernigotti
+#   Copyright 2024 Agustin Pernigotti
 #
 # Usage:
 #   Sentus.py $SCEN_PATH
