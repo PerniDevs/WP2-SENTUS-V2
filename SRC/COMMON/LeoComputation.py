@@ -39,7 +39,11 @@ def computeSatClkBias(current_epoch, SatLabel, SatClkInfo):
                                  SatClkInfo[(SatClkInfo[SatClkIdx["CONST"]] == SatLabel[0]) & (SatClkInfo[SatClkIdx["PRN"]] == int(SatLabel[1:]))][SatClkIdx["SOD"]],
                                  SatClkInfo[(SatClkInfo[SatClkIdx["CONST"]] == SatLabel[0]) & (SatClkInfo[SatClkIdx["PRN"]] == int(SatLabel[1:]))][SatClkIdx["CLK-BIAS"]]
                                  )
-        return SatClkBias
+        
+        maxSodSatCLKInfo = SatClkInfo[SatClkIdx["SOD"]]
+
+        
+        return SatClkBias, maxSodSatCLKInfo
 
 
 def computeRcvrApo(Conf, Year, Doy, Sod, SatLabel, LeoQuatInfo):
@@ -109,91 +113,161 @@ def computeRcvrApo(Conf, Year, Doy, Sod, SatLabel, LeoQuatInfo):
     return RcvrApoXyz
 
 
-def computeSatComPos(TransmissionTime, SatLabel ,SatPosInfo):
-    '''
-            Goal:
-                Compute Satellite Center of Masses (CoM), by using Langrangian interpolation
+# def computeSatComPos(TransmissionTime, SatLabel ,SatPosInfo):
+#     '''
+#             Goal:
+#                 Compute Satellite Center of Masses (CoM), by using Langrangian interpolation
 
-            Inputs:
-                TransmissionTime = Transmission time of that specific PRN, based on C1
-                SatLabel = PRN identifier
-                SatPosInfo = dataframe containing the satellite position every 300s (based on SP3 file)
+#             Inputs:
+#                 TransmissionTime = Transmission time of that specific PRN, based on C1
+#                 SatLabel = PRN identifier
+#                 SatPosInfo = dataframe containing the satellite position every 300s (based on SP3 file)
             
-            Returns :
-                SatClkBias
+#             Returns :
+#                 SatClkBias
             
-    '''
-    # 1. Filter the SatPosInfo dictionary based on the Constellation and the PRN
-    satData =  SatPosInfo[(SatPosInfo[SatPosIdx["CONST"]] == SatLabel[0])  
-                    & (SatPosInfo[SatPosIdx["PRN"]] == int(SatLabel[1:]))].reset_index(drop=True)
+#     '''
+#     num_of_points = 10
+
+#     # 1. Filter the SatPosInfo dictionary based on the Constellation and the PRN
+#     satData =  SatPosInfo[(SatPosInfo[SatPosIdx["CONST"]] == SatLabel[0])  
+#                     & (SatPosInfo[SatPosIdx["PRN"]] == int(SatLabel[1:]))].reset_index(drop=True)
     
-    # 2. Use the transmission time and take the first 10 point, by looking where it falls and stating where the interval starts
-    interval_starts_idx = satData[satData[SatPosIdx["SOD"]] <= TransmissionTime].index[0]
-    interval_ends_idx = satData[satData[SatPosIdx["SOD"]] > TransmissionTime].index[0]
-    max_sod_idx = satData[SatPosIdx["SOD"]].idxmax()
+#     # 2. Use the transmission time and take the first 5 point ahead and 5 before, 
+#     interval_starts_idx = satData[satData[SatPosIdx["SOD"]] <= TransmissionTime].index[0]
+#     interval_ends_idx = satData[satData[SatPosIdx["SOD"]] > TransmissionTime].index[0]
+#     max_sod_idx = satData[SatPosIdx["SOD"]].idxmax()
 
-    num_of_points = 10
+#     #   Check the distance to the last value of the file by using the indices
+#     if (max_sod_idx - interval_ends_idx) >= num_of_points: # Max langrangian points 
+#         # Take the first 10 indices starting from the start point
+#         t_points = satData[SatPosIdx["SOD"]][interval_starts_idx : interval_ends_idx + num_of_points - 1]
+#         # Take the values for XYZ sat position at interval_starts
+#         satPosXYZ = np.array([satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["xCM"]] * KM_TO_M, 
+#                               satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["yCM"]] * KM_TO_M,
+#                               satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["zCM"]] * KM_TO_M
+#                               ])
+#     else:
+#         # Do the modulo operation with the difference of the indices
+#         mod = (max_sod_idx - interval_ends_idx) % num_of_points
+#         rest = num_of_points - mod
+#         # Take the first 10 indices starting from a previous index
+#         t_points = satData[SatPosIdx["SOD"]][interval_starts_idx - rest : interval_ends_idx]
+#         # Take the values for XYZ sat position at interval_starts - rest
+#         satPosXYZ = np.array([satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["xCM"]] * KM_TO_M, 
+#                               satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["yCM"]] * KM_TO_M,
+#                               satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["zCM"]] * KM_TO_M
+#                               ])
 
-    #   Check the distance to the last value of the file by using the indices
-    if (max_sod_idx - interval_ends_idx) >= num_of_points: # Max langrangian points 
-        # Take the first 10 indices starting from the start point
-        t_points = satData[SatPosIdx["SOD"]][interval_starts_idx : interval_ends_idx + num_of_points - 1]
-        # Take the values for XYZ sat position at interval_starts
-        satPosXYZ = np.array([satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["xCM"]] * KM_TO_M, 
-                              satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["yCM"]] * KM_TO_M,
-                              satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["zCM"]] * KM_TO_M
-                              ])
+#     Lx, Ly, Lz = LangrangeInterpolation(TransmissionTime, t_points, satPosXYZ)
+
+#     SatComPos = np.array([Lx, Ly, Lz])
+
+#     return SatComPos
+
+def computeSatComPos(TransmissionTime, SatLabel, SatPosInfo):
+    '''
+        Goal:
+            Compute Satellite Center of Masses (CoM), by using Lagrangian interpolation.
+
+        Inputs:
+            TransmissionTime = Transmission time of that specific PRN, based on C1.
+            SatLabel = PRN identifier.
+            SatPosInfo = dataframe containing the satellite position every 300s (based on SP3 file).
+
+        Returns:
+            SatComPos = Interpolated satellite position at TransmissionTime (in meters).
+    '''
+    num_of_points = 10  # We need 5 before and 5 after the TransmissionTime
+    half_points = num_of_points // 2  # 5 points before and 5 points after
+
+    # 1. Filter the SatPosInfo dictionary based on the Constellation and the PRN
+    satData = SatPosInfo[(SatPosInfo[SatPosIdx["CONST"]] == SatLabel[0]) &
+                         (SatPosInfo[SatPosIdx["PRN"]] == int(SatLabel[1:]))].reset_index(drop=True)
+    
+    # 2. Identify the interval where the TransmissionTime fits
+    try:
+        # Index of the last point that is <= TransmissionTime
+        interval_starts_idx = satData[satData[SatPosIdx["SOD"]] <= TransmissionTime].index[-1]
+        # Index of the first point that is > TransmissionTime
+        interval_ends_idx = satData[satData[SatPosIdx["SOD"]] > TransmissionTime].index[0]
+    except IndexError:
+        raise ValueError("TransmissionTime is out of range in the satellite data.")
+
+    # 3. Check if we're near the start of the file
+    if interval_starts_idx < half_points:
+        # Not enough points before TransmissionTime, take more from after
+        start_idx = 0  # Start from the first point
+        end_idx = num_of_points  # Take the first 10 points
+    # 4. Check if we're near the end of the file
+    elif interval_ends_idx + half_points > len(satData):
+        # Not enough points after TransmissionTime, take more from before
+        end_idx = len(satData)  # Go until the last point
+        start_idx = len(satData) - num_of_points  # Go back to get 10 points total
+    # 5. General case, enough points before and after TransmissionTime
     else:
-        # Do the modulo operation with the difference of the indices
-        mod = (max_sod_idx - interval_ends_idx) % num_of_points
-        rest = num_of_points - mod
-        # Take the first 10 indices starting from a previous index
-        t_points = satData[SatPosIdx["SOD"]][interval_starts_idx - rest : interval_ends_idx]
-        # Take the values for XYZ sat position at interval_starts - rest
-        satPosXYZ = np.array([satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["xCM"]] * KM_TO_M, 
-                              satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["yCM"]] * KM_TO_M,
-                              satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["zCM"]] * KM_TO_M
-                              ])
+        start_idx = interval_starts_idx - half_points  # 5 points before
+        end_idx = interval_starts_idx + half_points + 1  # 5 points after
 
+    # 6. Extract the time points and the satellite positions (X, Y, Z) for interpolation
+    t_points = satData[SatPosIdx["SOD"]][start_idx:end_idx]
+
+    # Extract the XYZ satellite positions
+    satPosXYZ = np.array([satData[SatPosIdx["xCM"]][start_idx:end_idx].values * KM_TO_M,
+                          satData[SatPosIdx["yCM"]][start_idx:end_idx].values * KM_TO_M,
+                          satData[SatPosIdx["zCM"]][start_idx:end_idx].values * KM_TO_M])
+
+    # 7. Perform Lagrange interpolation using the time points and the XYZ positions
     Lx, Ly, Lz = LangrangeInterpolation(TransmissionTime, t_points, satPosXYZ)
 
+    # 8. Return the interpolated satellite position (X, Y, Z)
     SatComPos = np.array([Lx, Ly, Lz])
 
     return SatComPos
 
 
+
 def LangrangeInterpolation(TransmissionTime, t_points, satPosXYZ):
     '''
         Goal: 
-            To build Lagrange interpolation for time based 3D positions
+            Perform Lagrange interpolation for 3D positions based on time.
         
         Inputs:
-            t_points = time points to do the Lagrangians 
-            TransmissionTime = Time at which the signal was trasnmitted
-            satPosXYZ = containing the XYZ positions for a length period in time
+            t_points (list or array-like): Time points for Lagrange interpolation.
+            TransmissionTime (float): The specific time at which interpolation is performed.
+            satPosXYZ (array-like): XYZ positions corresponding to the time points.
         
         Returns:
-            LagrangePolynomial Lx, Ly, Lz
+            tuple: Interpolated Lagrange polynomials for X, Y, Z positions (Lx, Ly, Lz).
     '''
-    assert len(t_points) == len(satPosXYZ[0]), "values must have the same length."
-
-    # Build Lagrange basis 
     
-    Lx, Ly, Lz = 0, 0, 0
+    # Ensure inputs are compatible (convert to NumPy arrays if necessary)
+    t_points = np.array(t_points)
+    satPosXYZ = np.array(satPosXYZ)
     
+    # Ensure the dimensions match
+    assert len(t_points) == satPosXYZ.shape[1], "The number of time points must match the number of position points."
+    
+    # Initialize Lagrange interpolating polynomials for X, Y, Z
+    Lx, Ly, Lz = 0.0, 0.0, 0.0
+    
+    # Iterate through all points
     for i in range(len(t_points)):
-        # Calculate Lagrange basis polynomial L_i(x)
-        L_i = 1
+        # Calculate the Lagrange basis polynomial L_i(x)
+        L_i = 1.0
         for j in range(len(t_points)):
             if i != j:
+                # Compute the Lagrange basis polynomial term
                 L_i *= (TransmissionTime - t_points[j]) / (t_points[i] - t_points[j])
         
-        # Add the term y_i * L_i(x) to the interpolating polynomial
+        # Add the interpolated values for X, Y, and Z
         Lx += satPosXYZ[0][i] * L_i
         Ly += satPosXYZ[1][i] * L_i
         Lz += satPosXYZ[2][i] * L_i
-
+    
+    # Return the interpolated position for X, Y, and Z
     return Lx, Ly, Lz
+
 
 
 def computeFlightTime(SatComPos, RcvrRefPosXyz):

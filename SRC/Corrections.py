@@ -198,127 +198,133 @@ def runCorrectMeas(Year,
                 
                 # Compute Satellite Clock Bias (linear interpolation between closer inputs)
                 # --------------------------------------------------------------------------
-                SatClkBias = computeSatClkBias(SatCorrInfo["Sod"], SatLabel, SatClkInfo)
+                SatClkBias, maxSodSatCLKInfo = computeSatClkBias(SatCorrInfo["Sod"], SatLabel, SatClkInfo)
                 
-                # Compute DeltaT
-                # --------------------------------------------------------------------------
-                DeltaT = SatPrepro["C1"]/Const.SPEED_OF_LIGHT
+                if (SatCorrInfo["Sod"] <= maxSodSatCLKInfo).any():
+                    # Compute DeltaT
+                    # --------------------------------------------------------------------------
+                    DeltaT = SatPrepro["C1"]/Const.SPEED_OF_LIGHT
 
-                # Compute Transmission Time
-                # --------------------------------------------------------------------------
-                TransmissionTime = np.array(SatCorrInfo["Sod"] - DeltaT - SatClkBias)
+                    # Compute Transmission Time
+                    # --------------------------------------------------------------------------
+                    TransmissionTime = np.array(SatCorrInfo["Sod"] - DeltaT - SatClkBias)
 
-                # Compute receiver Position at reception Time
-                # --------------------------------------------------------------------------
-                # Get Receiver APO in ECEF coordinates
-                RcvrApoXyz = computeRcvrApo(Conf, Year, Doy, SatCorrInfo["Sod"], SatLabel, LeoQuatInfo)
+                    # Compute receiver Position at reception Time
+                    # --------------------------------------------------------------------------
+                    # Get Receiver APO in ECEF coordinates
+                    RcvrApoXyz = computeRcvrApo(Conf, Year, Doy, SatCorrInfo["Sod"], SatLabel, LeoQuatInfo)
 
-                # Apply the APO
-                # --------------------------------------------------------------------------
-                RcvrRefPosXyz = np.array([(RcvrRefPosXyzCom[RcvrRefPosXyzCom["SOD"] == SatCorrInfo["Sod"]]["xCM"] + RcvrApoXyz[0]).iloc[0],
-                                          (RcvrRefPosXyzCom[RcvrRefPosXyzCom["SOD"] == SatCorrInfo["Sod"]]["yCM"] + RcvrApoXyz[1]).iloc[0],
-                                          (RcvrRefPosXyzCom[RcvrRefPosXyzCom["SOD"] == SatCorrInfo["Sod"]]["zCM"] + RcvrApoXyz[2]).iloc[0]])                              
+                    # Apply the APO
+                    # --------------------------------------------------------------------------
+                    RcvrRefPosXyz = np.array([(RcvrRefPosXyzCom[RcvrRefPosXyzCom["SOD"] == SatCorrInfo["Sod"]]["xCM"] + RcvrApoXyz[0]).iloc[0],
+                                            (RcvrRefPosXyzCom[RcvrRefPosXyzCom["SOD"] == SatCorrInfo["Sod"]]["yCM"] + RcvrApoXyz[1]).iloc[0],
+                                            (RcvrRefPosXyzCom[RcvrRefPosXyzCom["SOD"] == SatCorrInfo["Sod"]]["zCM"] + RcvrApoXyz[2]).iloc[0]])                              
 
-                # Compute Satellite CoM Position at Transmission Time
-                # 10-point Lagrange interpolation between closer inputs (SP3 positions)
-                # -------------------------------------------------------------------------- 
-                SatComPos = computeSatComPos(TransmissionTime, SatLabel, SatPosInfo)
+                    # Compute Satellite CoM Position at Transmission Time
+                    # 10-point Lagrange interpolation between closer inputs (SP3 positions)
+                    # -------------------------------------------------------------------------- 
+                    SatComPos = computeSatComPos(TransmissionTime, SatLabel, SatPosInfo)
+                    
+                    # Compute Flight Time
+                    # -------------------------------------------------------------------------- 
+                    FlightTime = computeFlightTime(SatComPos, RcvrRefPosXyz) * Const.S_TO_MS
+
+                    # Apply Sagnac correction
+                    # -------------------------------------------------------------------------- 
+                    SatComPosSagnac = computeSagnacCorr(SatComPos, FlightTime)
+
+                    # Compute APO in ECEF from ANTEX APOs in
+                    # satellite-body reference frame
+                    # -------------------------------------------------------------------------- 
+                    SunPos = findSun(Year, Doy, SatCorrInfo["Sod"])
+                    Apo = computeSatApo(SatComPosSagnac, SunPos, GammaF1F2, SatApoInfo[(SatApoInfo[SatApoIdx["CONST"]] == SatLabel[0]) & 
+                                                                            (SatApoInfo[SatApoIdx["PRN"]] == int(SatLabel[1:]))])
+
+                    # Apply APOs to the satellite Position
+                    SatCopPos = SatComPosSagnac + Apo
+
+                    # Get Satellite Biases in meters
+                    satCodeBias, satPhaseBias = getBiases(GammaF1F2, SatBiaInfo[(SatBiaInfo[SatBiaIdx["CONST"]] == SatLabel[0]) & 
+                                                                    (SatBiaInfo[SatBiaIdx["PRN"]] == int(SatLabel[1:]))])
+                    
+                    # Compute DTR (Relativistic correction)
+                    # -------------------------------------------------------------------------- 
+                    Dtr = computeDtr(SatComPos_1[SatLabel][-1], SatComPosSagnac, SatCorrInfo["Sod"], Sod_1[SatLabel][-1])
+
+                    # Apply Dtr to Clock Bias
+                    if Dtr != Const.NAN:
+                        SatClkBias = SatClkBias * Const.SPEED_OF_LIGHT + Dtr
+                    else:
+                        SatClkBias = SatClkBias * Const.SPEED_OF_LIGHT
+
+                    # Get Sigma UERE from Conf
+                    # -------------------------------------------------------------------------- 
+                    UERE = getUere(Conf, SatLabel) if Dtr != Const.NAN else 0
+
+                    # Corrected Measurements from previous information
+                    # --------------------------------------------------------------------------
+                    CorrCode = (PreproObsInfo[SatLabel]["SmoothIF"] + satCodeBias + SatClkBias ) if Dtr != Const.NAN else 0
+                    CorrPhase = (PreproObsInfo[SatLabel]["IF_P"] + satPhaseBias + SatClkBias) if Dtr != Const.NAN else 0
+
+                    # Compute the Geometrical Range
+                    # --------------------------------------------------------------------------
+                    GeomRange = computeGeomRange(SatCopPos, RcvrRefPosXyz) if Dtr != Const.NAN else 0
+
+                    # Compute the First Residual removing the Geometrical Range
+                    # They Include Receiver Clock Estimation
+                    # --------------------------------------------------------------------------
+                    CodeResidual = (CorrCode - GeomRange) if Dtr != Const.NAN else 0
+                    PhaseResidual = (CorrPhase - GeomRange) if Dtr != Const.NAN else 0
+
+                    # # Update Dictionary
+                    SatCorrInfo["LeoX"] = RcvrRefPosXyz[0]
+                    SatCorrInfo["LeoY"] = RcvrRefPosXyz[1]
+                    SatCorrInfo["LeoZ"] = RcvrRefPosXyz[2]
+                    
+                    SatCorrInfo["LeoApoX"] = RcvrApoXyz[0]
+                    SatCorrInfo["LeoApoY"] = RcvrApoXyz[1]
+                    SatCorrInfo["LeoApoZ"] = RcvrApoXyz[2]
+                    
+                    SatCorrInfo["SatX"] = SatCopPos[0]
+                    SatCorrInfo["SatY"] = SatCopPos[1]
+                    SatCorrInfo["SatZ"] = SatCopPos[2]
+                    
+                    SatCorrInfo["SatApoX"] = Apo[0]
+                    SatCorrInfo["SatApoY"] = Apo[1]
+                    SatCorrInfo["SatApoZ"] = Apo[2]
+                    
+                    SatCorrInfo["FlightTime"] = FlightTime
+
+                    SatCorrInfo["SatClk"] = SatClkBias
+                    SatCorrInfo["SatCodeBia"] = satCodeBias
+                    SatCorrInfo["SatPhaseBia"] = satPhaseBias
+
+                    SatCorrInfo["Dtr"] = Dtr
+
+                    SatCorrInfo["CorrCode"] = CorrCode 
+                    SatCorrInfo["CorrPhase"] = CorrPhase 
+                    SatCorrInfo["GeomRange"] = GeomRange
+                    
+                    SatCorrInfo["CodeResidual"] = CodeResidual
+                    SatCorrInfo["PhaseResidual"] = PhaseResidual
+                    SatCorrInfo["SigmaUere"] = UERE
+
+                    # Update Flag = 0 [don't use] Set Flag to 0 if Dtr = Nan
+                    if Dtr == Const.NAN:
+                        SatCorrInfo["Flag"] = 0
+
+                    # Put the Flag at 0 if the End of SatClkInfo file
+
+                    # Accumulate Sigmas and residuals
+                    if SatLabel[0] == "G":
+                        ResidualsAccumGPS.append(CodeResidual)
+                        UeresAccumGPS.append(UERE) 
+                    elif SatLabel[0] == "E":
+                        ResidualsAccumGAL.append(CodeResidual)
+                        UeresAccumGAL.append(UERE)
                 
-                # Compute Flight Time
-                # -------------------------------------------------------------------------- 
-                FlightTime = computeFlightTime(SatComPos, RcvrRefPosXyz) * Const.S_TO_MS
-
-                # Apply Sagnac correction
-                # -------------------------------------------------------------------------- 
-                SatComPosSagnac = computeSagnacCorr(SatComPos, FlightTime)
-
-                # Compute APO in ECEF from ANTEX APOs in
-                # satellite-body reference frame
-                # -------------------------------------------------------------------------- 
-                SunPos = findSun(Year, Doy, SatCorrInfo["Sod"])
-                Apo = computeSatApo(SatComPosSagnac, SunPos, GammaF1F2, SatApoInfo[(SatApoInfo[SatApoIdx["CONST"]] == SatLabel[0]) & 
-                                                                        (SatApoInfo[SatApoIdx["PRN"]] == int(SatLabel[1:]))])
-
-                # Apply APOs to the satellite Position
-                SatCopPos = SatComPosSagnac + Apo
-
-                # Get Satellite Biases in meters
-                satCodeBias, satPhaseBias = getBiases(GammaF1F2, SatBiaInfo[(SatBiaInfo[SatBiaIdx["CONST"]] == SatLabel[0]) & 
-                                                                  (SatBiaInfo[SatBiaIdx["PRN"]] == int(SatLabel[1:]))])
-                
-                # Compute DTR (Relativistic correction)
-                # -------------------------------------------------------------------------- 
-                Dtr = computeDtr(SatComPos_1[SatLabel][-1], SatComPosSagnac, SatCorrInfo["Sod"], Sod_1[SatLabel][-1])
-
-                # Apply Dtr to Clock Bias
-                if Dtr != Const.NAN:
-                    SatClkBias = SatClkBias * Const.SPEED_OF_LIGHT + Dtr
                 else:
-                    SatClkBias = SatClkBias * Const.SPEED_OF_LIGHT
-
-                # Get Sigma UERE from Conf
-                # -------------------------------------------------------------------------- 
-                UERE = getUere(Conf, SatLabel) if Dtr != Const.NAN else 0
-
-                # Corrected Measurements from previous information
-                # --------------------------------------------------------------------------
-                CorrCode = (PreproObsInfo[SatLabel]["SmoothIF"] + satCodeBias + SatClkBias ) if Dtr != Const.NAN else 0
-                CorrPhase = (PreproObsInfo[SatLabel]["IF_P"] + satPhaseBias + SatClkBias) if Dtr != Const.NAN else 0
-
-                # Compute the Geometrical Range
-                # --------------------------------------------------------------------------
-                GeomRange = computeGeomRange(SatCopPos, RcvrRefPosXyz) if Dtr != Const.NAN else 0
-
-                # Compute the First Residual removing the Geometrical Range
-                # They Include Receiver Clock Estimation
-                # --------------------------------------------------------------------------
-                CodeResidual = (CorrCode - GeomRange) if Dtr != Const.NAN else 0
-                PhaseResidual = (CorrPhase - GeomRange) if Dtr != Const.NAN else 0
-
-                # # Update Dictionary
-                SatCorrInfo["LeoX"] = RcvrRefPosXyz[0]
-                SatCorrInfo["LeoY"] = RcvrRefPosXyz[1]
-                SatCorrInfo["LeoZ"] = RcvrRefPosXyz[2]
-                
-                SatCorrInfo["LeoApoX"] = RcvrApoXyz[0]
-                SatCorrInfo["LeoApoY"] = RcvrApoXyz[1]
-                SatCorrInfo["LeoApoZ"] = RcvrApoXyz[2]
-                
-                SatCorrInfo["SatX"] = SatCopPos[0]
-                SatCorrInfo["SatY"] = SatCopPos[1]
-                SatCorrInfo["SatZ"] = SatCopPos[2]
-                
-                SatCorrInfo["SatApoX"] = Apo[0]
-                SatCorrInfo["SatApoY"] = Apo[1]
-                SatCorrInfo["SatApoZ"] = Apo[2]
-                
-                SatCorrInfo["FlightTime"] = FlightTime
-
-                SatCorrInfo["SatClk"] = SatClkBias
-                SatCorrInfo["SatCodeBia"] = satCodeBias
-                SatCorrInfo["SatPhaseBia"] = satPhaseBias
-
-                SatCorrInfo["Dtr"] = Dtr
-
-                SatCorrInfo["CorrCode"] = CorrCode 
-                SatCorrInfo["CorrPhase"] = CorrPhase 
-                SatCorrInfo["GeomRange"] = GeomRange
-                
-                SatCorrInfo["CodeResidual"] = CodeResidual
-                SatCorrInfo["PhaseResidual"] = PhaseResidual
-                SatCorrInfo["SigmaUere"] = UERE
-
-                # Update Flag = 0 [don't use] Set Flag to 0 if Dtr = Nan
-                if Dtr == Const.NAN:
                     SatCorrInfo["Flag"] = 0
-
-                # Accumulate Sigmas and residuals
-                if SatLabel[0] == "G":
-                    ResidualsAccumGPS.append(CodeResidual)
-                    UeresAccumGPS.append(UERE) 
-                elif SatLabel[0] == "E":
-                    ResidualsAccumGAL.append(CodeResidual)
-                    UeresAccumGAL.append(UERE) 
 
             else:
                 # Update Flag = 0 [don't use]
