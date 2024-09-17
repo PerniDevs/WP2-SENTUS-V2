@@ -113,58 +113,6 @@ def computeRcvrApo(Conf, Year, Doy, Sod, SatLabel, LeoQuatInfo):
     return RcvrApoXyz
 
 
-# def computeSatComPos(TransmissionTime, SatLabel ,SatPosInfo):
-#     '''
-#             Goal:
-#                 Compute Satellite Center of Masses (CoM), by using Langrangian interpolation
-
-#             Inputs:
-#                 TransmissionTime = Transmission time of that specific PRN, based on C1
-#                 SatLabel = PRN identifier
-#                 SatPosInfo = dataframe containing the satellite position every 300s (based on SP3 file)
-            
-#             Returns :
-#                 SatClkBias
-            
-#     '''
-#     num_of_points = 10
-
-#     # 1. Filter the SatPosInfo dictionary based on the Constellation and the PRN
-#     satData =  SatPosInfo[(SatPosInfo[SatPosIdx["CONST"]] == SatLabel[0])  
-#                     & (SatPosInfo[SatPosIdx["PRN"]] == int(SatLabel[1:]))].reset_index(drop=True)
-    
-#     # 2. Use the transmission time and take the first 5 point ahead and 5 before, 
-#     interval_starts_idx = satData[satData[SatPosIdx["SOD"]] <= TransmissionTime].index[0]
-#     interval_ends_idx = satData[satData[SatPosIdx["SOD"]] > TransmissionTime].index[0]
-#     max_sod_idx = satData[SatPosIdx["SOD"]].idxmax()
-
-#     #   Check the distance to the last value of the file by using the indices
-#     if (max_sod_idx - interval_ends_idx) >= num_of_points: # Max langrangian points 
-#         # Take the first 10 indices starting from the start point
-#         t_points = satData[SatPosIdx["SOD"]][interval_starts_idx : interval_ends_idx + num_of_points - 1]
-#         # Take the values for XYZ sat position at interval_starts
-#         satPosXYZ = np.array([satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["xCM"]] * KM_TO_M, 
-#                               satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["yCM"]] * KM_TO_M,
-#                               satData[interval_starts_idx : interval_ends_idx + num_of_points - 1][SatPosIdx["zCM"]] * KM_TO_M
-#                               ])
-#     else:
-#         # Do the modulo operation with the difference of the indices
-#         mod = (max_sod_idx - interval_ends_idx) % num_of_points
-#         rest = num_of_points - mod
-#         # Take the first 10 indices starting from a previous index
-#         t_points = satData[SatPosIdx["SOD"]][interval_starts_idx - rest : interval_ends_idx]
-#         # Take the values for XYZ sat position at interval_starts - rest
-#         satPosXYZ = np.array([satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["xCM"]] * KM_TO_M, 
-#                               satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["yCM"]] * KM_TO_M,
-#                               satData[interval_starts_idx - rest : interval_ends_idx][SatPosIdx["zCM"]] * KM_TO_M
-#                               ])
-
-#     Lx, Ly, Lz = LangrangeInterpolation(TransmissionTime, t_points, satPosXYZ)
-
-#     SatComPos = np.array([Lx, Ly, Lz])
-
-#     return SatComPos
-
 def computeSatComPos(TransmissionTime, SatLabel, SatPosInfo):
     '''
         Goal:
