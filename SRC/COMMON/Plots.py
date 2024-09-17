@@ -364,20 +364,6 @@ def generatePolarPlot(PlotConf):
         if key == "Map" and PlotConf[key] == True:
             drawMap(PlotConf, ax)
 
-    # for Label in PlotConf["rData"].keys():
-    #     if "ColorBar" in PlotConf:
-    #         ax.scatter(PlotConf["thetaData"][Label], PlotConf["rData"][Label], 
-    #         marker = PlotConf["Marker"],
-    #         linewidth = LineWidth,
-    #         cmap = cmap(normalize(np.array(PlotConf["zData"][Label]))),
-    #         s = PlotConf["s"]
-    #         )
-
-    #     else:
-    #         ax.plot(PlotConf["thetaData"][Label], PlotConf["rData"][Label],
-    #         PlotConf["Marker"],
-    #         linewidth = LineWidth)
-
     saveFigure(fig, PlotConf["Path"])
 
 def generatePlot(PlotConf):

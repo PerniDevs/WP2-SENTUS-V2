@@ -47,6 +47,7 @@ from PreprocessingPlots import generatePreproPlots
 from COMMON.Dates import convertJulianDay2YearMonthDay
 from COMMON.Dates import convertYearMonthDay2Doy
 from Corrections import runCorrectMeas
+from CorrectionsPlots import generateCorrPlots
 
 #----------------------------------------------------------------------
 # INTERNAL FUNCTIONS
@@ -305,8 +306,16 @@ for Jd in range(Conf["INI_DATE_JD"], Conf["END_DATE_JD"] + 1):
         generatePreproPlots(PreproObsFile)
 
     # If CORR outputs are requested
-    # if Conf["CORR_OUT"] == 1:
+    if Conf["CORR_OUT"] == 1:
         # Close CORR output file
+        fcorr.close()
+
+        # Display Message
+        print("INFO: Reading file: %s and generating CORR figures..." %
+        CorrObsFile)
+
+        # Generate Preprocessing plots
+        generateCorrPlots(CorrObsFile)
 
 # End of JD loop
 

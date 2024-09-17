@@ -1331,7 +1331,6 @@ def generatePreproPlots(PreproObsFile):
     # Satellite Visibility
     # ----------------------------------------------------------
     # Read the cols we need from PREPRO OBS file
-    PreproObsData_test = read_csv(PreproObsFile, delim_whitespace=True, skiprows=1, header=None)
     PreproObsData = read_csv(PreproObsFile, delim_whitespace=True, skiprows=1, header=None,\
     usecols=[PreproIdx["SOD"],PreproIdx["PRN"],PreproIdx["STATUS"],PreproIdx["ELEV"]])
     
