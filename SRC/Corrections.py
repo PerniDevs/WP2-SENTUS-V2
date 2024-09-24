@@ -207,7 +207,7 @@ def runCorrectMeas(Year,
 
                     # Compute Transmission Time
                     # --------------------------------------------------------------------------
-                    TransmissionTime = np.array(SatCorrInfo["Sod"] - DeltaT - SatClkBias)
+                    TransmissionTime = SatCorrInfo["Sod"] - DeltaT - SatClkBias
 
                     # Compute receiver Position at reception Time
                     # --------------------------------------------------------------------------
